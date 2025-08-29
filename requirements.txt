@@ -7,3 +7,4 @@ assemblyai
 requests
 google-search-results
 murf
+jinja2

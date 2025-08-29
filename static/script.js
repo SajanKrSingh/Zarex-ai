@@ -1,3 +1,4 @@
+// day-28/static/script.js (Updated)
 document.addEventListener("DOMContentLoaded", () => {
   const recordBtn = document.getElementById("recordBtn");
   const statusDisplay = document.getElementById("statusDisplay");
@@ -11,8 +12,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const assemblyaiKeyInput = document.getElementById("assemblyai-key");
   const geminiKeyInput = document.getElementById("gemini-key");
   const serpapiKeyInput = document.getElementById("serpapi-key");
+  const weatherapiKeyInput = document.getElementById("weatherapi-key");
+  const personaSelect = document.getElementById("persona-select");
 
-  let apiKeys = {};
+  let config = {};
   let isRecording = false;
   let ws = null;
   let audioContext;
@@ -25,31 +28,36 @@ document.addEventListener("DOMContentLoaded", () => {
   settingsBtn.addEventListener("click", () => {
     apiKeyModal.style.display = "flex";
   });
-
+  
   saveKeysBtn.addEventListener("click", () => {
     const murfKey = murfKeyInput.value.trim();
     const assemblyaiKey = assemblyaiKeyInput.value.trim();
     const geminiKey = geminiKeyInput.value.trim();
-
+    
     if (!murfKey || !assemblyaiKey || !geminiKey) {
       alert("Please fill in all required API keys.");
       return;
     }
-
-    apiKeys = {
-      murf: murfKey,
-      assemblyai: assemblyaiKey,
-      gemini: geminiKey,
-      serpapi: serpapiKeyInput.value.trim(),
+    
+    config = {
+        type: "config",
+        keys: {
+            murf: murfKey,
+            assemblyai: assemblyaiKey,
+            gemini: geminiKey,
+            serpapi: serpapiKeyInput.value.trim(),
+            weather: weatherapiKeyInput.value.trim()
+        },
+        persona: personaSelect.value
     };
-
+    
     apiKeyModal.style.display = "none";
     recordBtn.disabled = false;
     recordBtn.classList.remove("bg-gray-500", "cursor-not-allowed");
     recordBtn.classList.add("bg-blue-600", "hover:bg-blue-700");
     statusDisplay.textContent = "Ready to chat!";
   });
-
+  
   // --- Chat Logic ---
   const addMessage = (text, type) => {
     const messageDiv = document.createElement("div");
@@ -63,16 +71,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (audioQueue.length > 0 && !isPlaying) {
       isPlaying = true;
       const base64Audio = audioQueue.shift();
-      const audioData = Uint8Array.from(atob(base64Audio), (c) =>
-        c.charCodeAt(0)
-      ).buffer;
-
-      if (!audioContext) {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const audioData = Uint8Array.from(atob(base64Audio), (c) => c.charCodeAt(0)).buffer;
+      
+      if (!audioContext || audioContext.state === 'closed') {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
       }
 
-      audioContext
-        .decodeAudioData(audioData)
+      audioContext.decodeAudioData(audioData)
         .then((buffer) => {
           const source = audioContext.createBufferSource();
           source.buffer = buffer;
@@ -93,11 +98,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const startRecording = async () => {
     try {
+      // This is where the browser asks for permission
       mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!audioContext || audioContext.state === "closed") {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)({
-          sampleRate: 16000,
-        });
+      
+      // Re-create AudioContext if it's closed
+      if (!audioContext || audioContext.state === 'closed') {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
       }
 
       const source = audioContext.createMediaStreamSource(mediaStream);
@@ -120,7 +126,6 @@ document.addEventListener("DOMContentLoaded", () => {
       ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
 
       ws.onopen = () => {
-        const config = { type: "config", keys: apiKeys };
         ws.send(JSON.stringify(config));
       };
 
@@ -141,7 +146,7 @@ document.addEventListener("DOMContentLoaded", () => {
       statusDisplay.textContent = "Listening...";
     } catch (error) {
       console.error("Could not start recording:", error);
-      alert("Microphone access is required.");
+      alert("Microphone access is required. Please allow microphone permission and try again.");
     }
   };
 
@@ -149,8 +154,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (processor) processor.disconnect();
     if (mediaStream) mediaStream.getTracks().forEach((track) => track.stop());
     if (ws) ws.close();
-    if (audioContext && audioContext.state !== "closed") {
-      audioContext.close();
+    
+    // Close the AudioContext to save resources
+    if (audioContext && audioContext.state !== 'closed') {
+        audioContext.close();
     }
 
     isRecording = false;

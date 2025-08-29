@@ -6,3 +6,4 @@ websockets
 assemblyai
 requests
 google-search-results
+murf-api
